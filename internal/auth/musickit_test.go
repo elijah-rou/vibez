@@ -18,6 +18,13 @@ import (
 // minimalTemplate is a no-op login page template used in handler tests.
 const minimalTemplate = `<html><body>{{.DeveloperToken}}</body></html>`
 
+func isolateUserConfig(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("XDG_CONFIG_HOME", dir)
+}
+
 func newTestMux(t *testing.T) (*http.ServeMux, chan string, chan error) {
 	t.Helper()
 	tmpl, err := template.New("login").Parse(minimalTemplate)
@@ -213,8 +220,7 @@ func containsSubstr(s, sub string) bool {
 // --- Login full success flow ---
 
 func TestLogin_SuccessFlow(t *testing.T) {
-	// Override HOME so cfg.Save("") writes to a temp dir.
-	t.Setenv("HOME", t.TempDir())
+	isolateUserConfig(t)
 
 	ln, err := net.Listen("tcp", ":0") //nolint:gosec // G102: ":0" is standard for finding a free port in tests
 	if err != nil {
@@ -256,6 +262,8 @@ func TestLogin_SuccessFlow(t *testing.T) {
 // TestLogin_UsesInjectedDevToken verifies that a build-time injected devToken is
 // used when the config has no AppleDeveloperToken set.
 func TestLogin_UsesInjectedDevToken(t *testing.T) {
+	isolateUserConfig(t)
+
 	// Temporarily set the package-level injected token.
 	original := devToken
 	devToken = "injected-dev-token" //nolint:gosec // G101: test value, not a real credential
@@ -292,6 +300,8 @@ func TestLogin_UsesInjectedDevToken(t *testing.T) {
 // token always takes priority over any value in the config, so release binaries
 // never use a stale user-supplied token.
 func TestLogin_EmbeddedTokenOverridesExplicit(t *testing.T) {
+	isolateUserConfig(t)
+
 	original := devToken
 	devToken = "embedded-takes-priority" //nolint:gosec // G101: test value, not a real credential
 	t.Cleanup(func() { devToken = original })
