@@ -87,7 +87,7 @@ func TestLibrary_PlaylistsSectionLoadsPlaylistThenPlaysTracks(t *testing.T) {
 		t.Fatalf("playlists not rendered: %q", view)
 	}
 	lib, _ = lib.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	lib, _ = lib.Update(playlistTracksMsg{playlist: playlists[0], tracks: tracks})
+	lib, _ = lib.Update(playlistTracksMsg{playlist: playlists[0], generation: lib.drillRequestGeneration, kind: lib.drillRequestKind, tracks: tracks})
 	if view := lib.View(); !strings.Contains(view, "One") || !strings.Contains(view, "Two") {
 		t.Fatalf("playlist tracks not rendered: %q", view)
 	}

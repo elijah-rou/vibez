@@ -46,10 +46,19 @@ type libraryTracksLoadedMsg struct {
 	err    error
 }
 
+type playlistRequestKind int
+
+const (
+	playlistRequestNone playlistRequestKind = iota
+	playlistRequestTracks
+)
+
 type playlistTracksMsg struct {
-	playlist provider.Playlist
-	tracks   []provider.Track
-	err      error
+	playlist   provider.Playlist
+	generation uint64
+	kind       playlistRequestKind
+	tracks     []provider.Track
+	err        error
 }
 
 type trackGroup struct {
@@ -75,13 +84,15 @@ type LibraryModel struct {
 	albums            []trackGroup
 	artists           []trackGroup
 
-	drillTitle     string
-	drillPlaylist  provider.Playlist
-	drillTracks    []provider.Track
-	drillLoading   bool
-	drillErr       error
-	drillList      list.Model
-	tracksBackPane libraryPane
+	drillTitle             string
+	drillPlaylist          provider.Playlist
+	drillTracks            []provider.Track
+	drillLoading           bool
+	drillErr               error
+	drillList              list.Model
+	drillRequestGeneration uint64
+	drillRequestKind       playlistRequestKind
+	tracksBackPane         libraryPane
 
 	width  int
 	height int
@@ -142,13 +153,17 @@ func (m *LibraryModel) loadPlaylists() tea.Cmd {
 }
 
 func (m *LibraryModel) loadPlaylistTracks(pl provider.Playlist) tea.Cmd {
+	m.drillRequestGeneration++
+	m.drillRequestKind = playlistRequestTracks
+	generation := m.drillRequestGeneration
+	kind := m.drillRequestKind
 	m.drillLoading = true
 	prov := m.provider
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), libraryLoadTimeout)
 		defer cancel()
 		tracks, err := prov.GetPlaylistTracks(ctx, pl.ID)
-		return playlistTracksMsg{playlist: pl, tracks: tracks, err: err}
+		return playlistTracksMsg{playlist: pl, generation: generation, kind: kind, tracks: tracks, err: err}
 	}
 }
 
@@ -174,13 +189,13 @@ func (m *LibraryModel) Update(msg tea.Msg) (*LibraryModel, tea.Cmd) {
 		}
 		return m, nil
 	case playlistTracksMsg:
-		if m.pane != paneTracks || m.drillPlaylist.ID != msg.playlist.ID {
+		if m.pane != paneTracks || m.drillPlaylist.ID != msg.playlist.ID || m.drillRequestGeneration != msg.generation || m.drillRequestKind != msg.kind || msg.kind != playlistRequestTracks {
 			return m, nil
 		}
 		m.drillLoading = false
 		m.drillErr = msg.err
 		if msg.err == nil {
-			m.showTrackPane(msg.playlist.Name, msg.tracks, paneItems)
+			m.showPlaylistTrackPane(msg.playlist.Name, msg.tracks, paneItems)
 		}
 		return m, nil
 	case spinner.TickMsg:
@@ -208,6 +223,7 @@ func (m *LibraryModel) handleKey(msg tea.KeyPressMsg) (*LibraryModel, tea.Cmd) {
 	case paneItems:
 		switch msg.String() {
 		case "esc", "backspace":
+			m.invalidatePlaylistRequest()
 			m.pane = paneSections
 			m.showSections()
 			return m, nil
@@ -217,6 +233,7 @@ func (m *LibraryModel) handleKey(msg tea.KeyPressMsg) (*LibraryModel, tea.Cmd) {
 	case paneTracks:
 		switch msg.String() {
 		case "esc", "backspace":
+			m.invalidatePlaylistRequest()
 			if m.tracksBackPane == paneSections && m.drillTitle == "" {
 				m.pane = paneItems
 			} else {
@@ -361,7 +378,20 @@ func (m *LibraryModel) showGroups(groups []trackGroup) {
 	m.list.Select(0)
 }
 
+func (m *LibraryModel) invalidatePlaylistRequest() {
+	m.drillRequestGeneration++
+	m.drillRequestKind = playlistRequestNone
+	m.drillPlaylist = provider.Playlist{}
+	m.drillLoading = false
+	m.drillErr = nil
+}
+
 func (m *LibraryModel) showTrackPane(title string, tracks []provider.Track, back libraryPane) {
+	m.invalidatePlaylistRequest()
+	m.showPlaylistTrackPane(title, tracks, back)
+}
+
+func (m *LibraryModel) showPlaylistTrackPane(title string, tracks []provider.Track, back libraryPane) {
 	m.pane = paneTracks
 	m.tracksBackPane = back
 	m.drillTitle = title
