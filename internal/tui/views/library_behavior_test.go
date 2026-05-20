@@ -27,7 +27,7 @@ func TestLibrary_SongsSectionLoadsAndPlaysSongs(t *testing.T) {
 	if !strings.Contains(lib.View(), "Loading songs") {
 		t.Fatalf("loading view missing songs copy: %q", lib.View())
 	}
-	lib, _ = lib.Update(libraryTracksLoadedMsg{tracks: tracks})
+	lib, _ = lib.Update(libraryTracksLoadedMsg{generation: lib.libraryRequestGeneration, section: lib.libraryRequestSection, kind: lib.libraryRequestKind, tracks: tracks})
 	view := lib.View()
 	if !strings.Contains(view, "One") || !strings.Contains(view, "Two") {
 		t.Fatalf("songs not rendered: %q", view)
@@ -42,7 +42,7 @@ func TestLibrary_AlbumsSectionGroupsSongsAndPlaysAlbumTracks(t *testing.T) {
 	lib.SetSize(80, 24)
 	lib, _ = lib.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	lib, _ = lib.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	lib, _ = lib.Update(libraryTracksLoadedMsg{tracks: tracks})
+	lib, _ = lib.Update(libraryTracksLoadedMsg{generation: lib.libraryRequestGeneration, section: lib.libraryRequestSection, kind: lib.libraryRequestKind, tracks: tracks})
 	if view := lib.View(); !strings.Contains(view, "Alpha") || !strings.Contains(view, "Beta") {
 		t.Fatalf("albums not rendered: %q", view)
 	}
@@ -61,7 +61,7 @@ func TestLibrary_ArtistsSectionGroupsSongsAndPlaysArtistTracks(t *testing.T) {
 	lib, _ = lib.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	lib, _ = lib.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	lib, _ = lib.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	lib, _ = lib.Update(libraryTracksLoadedMsg{tracks: tracks})
+	lib, _ = lib.Update(libraryTracksLoadedMsg{generation: lib.libraryRequestGeneration, section: lib.libraryRequestSection, kind: lib.libraryRequestKind, tracks: tracks})
 	if view := lib.View(); !strings.Contains(view, "A") || !strings.Contains(view, "B") {
 		t.Fatalf("artists not rendered: %q", view)
 	}
@@ -82,7 +82,7 @@ func TestLibrary_PlaylistsSectionLoadsPlaylistThenPlaysTracks(t *testing.T) {
 		lib, _ = lib.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	}
 	lib, _ = lib.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	lib, _ = lib.Update(libraryLoadedMsg{playlists: playlists})
+	lib, _ = lib.Update(libraryLoadedMsg{generation: lib.libraryRequestGeneration, section: lib.libraryRequestSection, kind: lib.libraryRequestKind, playlists: playlists})
 	if view := lib.View(); !strings.Contains(view, "Mix") {
 		t.Fatalf("playlists not rendered: %q", view)
 	}
