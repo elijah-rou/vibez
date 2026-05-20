@@ -36,14 +36,28 @@ const (
 	sectionPlaylists
 )
 
+type libraryRequestKind int
+
+const (
+	libraryRequestNone libraryRequestKind = iota
+	libraryRequestTracks
+	libraryRequestPlaylists
+)
+
 type libraryLoadedMsg struct {
-	playlists []provider.Playlist
-	err       error
+	generation uint64
+	section    librarySection
+	kind       libraryRequestKind
+	playlists  []provider.Playlist
+	err        error
 }
 
 type libraryTracksLoadedMsg struct {
-	tracks []provider.Track
-	err    error
+	generation uint64
+	section    librarySection
+	kind       libraryRequestKind
+	tracks     []provider.Track
+	err        error
 }
 
 type playlistRequestKind int
@@ -83,6 +97,10 @@ type LibraryModel struct {
 	playlistsLoaded   bool
 	albums            []trackGroup
 	artists           []trackGroup
+
+	libraryRequestGeneration uint64
+	libraryRequestSection    librarySection
+	libraryRequestKind       libraryRequestKind
 
 	drillTitle             string
 	drillPlaylist          provider.Playlist
@@ -131,24 +149,36 @@ func (m *LibraryModel) SetSize(w, h int) {
 }
 
 func (m *LibraryModel) loadLibraryTracks() tea.Cmd {
+	m.libraryRequestGeneration++
+	m.libraryRequestSection = m.selectedSection
+	m.libraryRequestKind = libraryRequestTracks
+	generation := m.libraryRequestGeneration
+	section := m.libraryRequestSection
+	kind := m.libraryRequestKind
 	m.loading = true
 	prov := m.provider
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), libraryLoadTimeout)
 		defer cancel()
 		tracks, err := prov.GetLibraryTracks(ctx)
-		return libraryTracksLoadedMsg{tracks: tracks, err: err}
+		return libraryTracksLoadedMsg{generation: generation, section: section, kind: kind, tracks: tracks, err: err}
 	}
 }
 
 func (m *LibraryModel) loadPlaylists() tea.Cmd {
+	m.libraryRequestGeneration++
+	m.libraryRequestSection = m.selectedSection
+	m.libraryRequestKind = libraryRequestPlaylists
+	generation := m.libraryRequestGeneration
+	section := m.libraryRequestSection
+	kind := m.libraryRequestKind
 	m.loading = true
 	prov := m.provider
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), libraryLoadTimeout)
 		defer cancel()
 		playlists, err := prov.GetLibraryPlaylists(ctx)
-		return libraryLoadedMsg{playlists: playlists, err: err}
+		return libraryLoadedMsg{generation: generation, section: section, kind: kind, playlists: playlists, err: err}
 	}
 }
 
@@ -170,6 +200,9 @@ func (m *LibraryModel) loadPlaylistTracks(pl provider.Playlist) tea.Cmd {
 func (m *LibraryModel) Update(msg tea.Msg) (*LibraryModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case libraryTracksLoadedMsg:
+		if !m.currentLibraryRequest(msg.generation, msg.section, msg.kind) || msg.kind != libraryRequestTracks {
+			return m, nil
+		}
 		m.loading = false
 		m.loadErr = msg.err
 		if msg.err == nil {
@@ -180,6 +213,9 @@ func (m *LibraryModel) Update(msg tea.Msg) (*LibraryModel, tea.Cmd) {
 		}
 		return m, nil
 	case libraryLoadedMsg:
+		if !m.currentLibraryRequest(msg.generation, msg.section, msg.kind) || msg.kind != libraryRequestPlaylists {
+			return m, nil
+		}
 		m.loading = false
 		m.loadErr = msg.err
 		if msg.err == nil {
@@ -258,6 +294,7 @@ func (m *LibraryModel) updateActiveList(msg tea.Msg) (*LibraryModel, tea.Cmd) {
 }
 
 func (m *LibraryModel) openSelectedSection() (*LibraryModel, tea.Cmd) {
+	m.invalidateLibraryRequest()
 	switch m.selectedSection {
 	case sectionSongs, sectionAlbums, sectionArtists:
 		if !m.tracksLoaded || m.libraryTracksExpired(time.Now()) {
@@ -279,6 +316,17 @@ func (m *LibraryModel) openSelectedSection() (*LibraryModel, tea.Cmd) {
 		m.showSections()
 		return m, nil
 	}
+}
+
+func (m *LibraryModel) currentLibraryRequest(generation uint64, section librarySection, kind libraryRequestKind) bool {
+	return m.libraryRequestGeneration == generation && m.libraryRequestSection == section && m.libraryRequestKind == kind && m.selectedSection == section
+}
+
+func (m *LibraryModel) invalidateLibraryRequest() {
+	m.libraryRequestGeneration++
+	m.libraryRequestSection = m.selectedSection
+	m.libraryRequestKind = libraryRequestNone
+	m.loading = false
 }
 
 func (m *LibraryModel) libraryTracksExpired(now time.Time) bool {
