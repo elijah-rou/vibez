@@ -10,6 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **WSL2 audio workaround flag** — set `"wsl": true` in `~/.config/vibez/config.json`
+  to enable Chrome audio tuning for WSL2 environments. When enabled, Chrome launches
+  with `--audio-buffer-size=4096` (absorbs Hyper-V scheduler jitter) and
+  `AudioServiceOutOfProcess` is added to `--disable-features` (prevents distortion
+  caused by PulseAudio and Windows running at mismatched sample rates). Disabled by
+  default so native Linux users are unaffected.
+- **Configurable Apple Music audio quality** — set `audio_quality` in
+  `config.json` or use `:quality <high|standard|256|64>` in the TUI to switch
+  between MusicKit's supported AAC streaming tiers. Unsupported values such as
+  lossless, Hi-Res, 320 kbps, or ALAC are rejected with a clear message because
+  MusicKit JS/web playback only exposes 64 kbps and 256 kbps AAC.
+- **Library sections** — the library panel now opens to Songs, Albums, Artists,
+  and Playlists. Songs play directly from the selected track onward, Albums and
+  Artists are grouped from saved library songs, and Playlists keep the existing
+  playlist drill-down and playback flow.
+
 - **10-band parametric equalizer** — press `e` to open the equalizer panel. Each of the 10
   ISO bands (32 Hz, 64 Hz, 125 Hz, 250 Hz, 500 Hz, 1 kHz, 2 kHz, 4 kHz, 8 kHz, 16 kHz)
   exposes independent frequency, Q factor, and gain (±12 dB, in 0.5 dB steps). Changes apply
