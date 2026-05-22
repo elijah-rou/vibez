@@ -3,6 +3,7 @@ package art
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"image"
 	_ "image/jpeg"
@@ -58,6 +59,8 @@ func FetchAndDecode(ctx context.Context, client *http.Client, url string, maxByt
 	}
 	switch parsed.Scheme {
 	case "http", "https":
+	case "data":
+		return decodeDataURL(url, maxBytes)
 	case "":
 		return nil, fmt.Errorf("fetch artwork: missing URL scheme")
 	default:
@@ -86,6 +89,21 @@ func FetchAndDecode(ctx context.Context, client *http.Client, url string, maxByt
 		return nil, fmt.Errorf("fetch artwork: status %d", resp.StatusCode)
 	}
 	return decodeBounded(resp.Body, maxBytes)
+}
+
+func decodeDataURL(raw string, maxBytes int64) (image.Image, error) {
+	meta, payload, ok := strings.Cut(raw, ",")
+	if !ok {
+		return nil, fmt.Errorf("decode artwork: invalid data URL")
+	}
+	mediaType := strings.ToLower(strings.TrimPrefix(meta, "data:"))
+	if !strings.HasPrefix(mediaType, "image/png;") && !strings.HasPrefix(mediaType, "image/jpeg;") {
+		return nil, fmt.Errorf("decode artwork: unsupported data media type %q", mediaType)
+	}
+	if !strings.Contains(mediaType, ";base64") {
+		return nil, fmt.Errorf("decode artwork: unsupported data encoding")
+	}
+	return decodeBounded(base64.NewDecoder(base64.StdEncoding, strings.NewReader(payload)), maxBytes)
 }
 
 func decodeBounded(r io.Reader, maxBytes int64) (image.Image, error) {

@@ -2,6 +2,7 @@ package art
 
 import (
 	"bytes"
+	"encoding/base64"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -127,6 +128,25 @@ func TestSupportsTrueColor_ReadsCOLORTERM(t *testing.T) {
 				t.Fatalf("SupportsTrueColor() = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestFetchAndDecode_SupportsPNGDataURL(t *testing.T) {
+	img := image.NewNRGBA(image.Rect(0, 0, 1, 1))
+	img.SetNRGBA(0, 0, color.NRGBA{R: 12, G: 34, B: 56, A: 255})
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	url := "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
+
+	decoded, err := FetchAndDecode(t.Context(), nil, url, 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Bounds().Dx() != 1 || decoded.Bounds().Dy() != 1 {
+		t.Fatalf("decoded bounds = %v, want 1x1", decoded.Bounds())
 	}
 }
 
