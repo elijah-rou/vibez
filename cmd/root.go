@@ -9,6 +9,7 @@ import (
 	"github.com/simone-vibes/vibez/internal/assets"
 	"github.com/simone-vibes/vibez/internal/auth"
 	"github.com/simone-vibes/vibez/internal/config"
+	"github.com/simone-vibes/vibez/internal/crash"
 	"github.com/simone-vibes/vibez/internal/lastfm"
 	demoPlayer "github.com/simone-vibes/vibez/internal/player/demo"
 	demoProvider "github.com/simone-vibes/vibez/internal/provider/demo"
@@ -78,6 +79,9 @@ func runTUI(_ *cobra.Command, _ []string) error {
 		opts.Backend = "Demo mode · built-in fake tracks, no credentials required"
 		prog := tea.NewProgram(tui.New(cfg, dp, p, opts))
 		_, err = prog.Run()
+		if err != nil {
+			crash.ReportError("tui", err)
+		}
 		return err
 	}
 

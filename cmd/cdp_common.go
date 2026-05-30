@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/simone-vibes/vibez/internal/auth"
 	"github.com/simone-vibes/vibez/internal/config"
+	"github.com/simone-vibes/vibez/internal/crash"
 	"github.com/simone-vibes/vibez/internal/lastfm"
 	playerpkg "github.com/simone-vibes/vibez/internal/player"
 	"github.com/simone-vibes/vibez/internal/player/cdp"
@@ -35,6 +36,7 @@ func runCDPFlow(cfg *config.Config, opts tui.Options, onUserToken, onStorefront 
 	restartExe := make(chan string, 1)
 
 	go func() {
+		defer crash.Recover("cdp-init")
 		if exe := updater.CheckAndUpdate(version.Version, noUpdate, func(msg string) {
 			prog.Send(tui.InitStatusMsg(msg))
 		}); exe != "" {
@@ -83,6 +85,7 @@ func runCDPFlow(cfg *config.Config, opts tui.Options, onUserToken, onStorefront 
 		cdpPlayer.OnSessionExpired = func() {
 			prog.Send(tui.SessionExpiredMsg{})
 			go func() {
+				defer crash.Recover("cdp-reauth")
 				if err := auth.Login(cfg); err != nil {
 					prog.Send(tui.InitErrMsg{Err: fmt.Errorf("re-auth: %w", err)})
 					return
@@ -98,6 +101,7 @@ func runCDPFlow(cfg *config.Config, opts tui.Options, onUserToken, onStorefront 
 
 		playerCh <- cdpPlayer
 		go func() {
+			defer crash.Recover("cdp-player")
 			defer close(runDone)
 			cdpPlayer.Run()
 		}()
@@ -124,6 +128,9 @@ func runCDPFlow(cfg *config.Config, opts tui.Options, onUserToken, onStorefront 
 	}()
 
 	_, err := prog.Run()
+	if err != nil {
+		crash.ReportError("tui", err)
+	}
 
 	select {
 	case p := <-playerCh:
@@ -151,6 +158,7 @@ func startLastfmScrobbler(cfg *config.Config, player interface {
 	scrobbler := lastfm.NewScrobbler(lfmClient)
 	scrobbler.SetLogger(log)
 	go func() {
+		defer crash.Recover("lastfm")
 		for st := range player.Subscribe() {
 			scrobbler.Update(st)
 		}

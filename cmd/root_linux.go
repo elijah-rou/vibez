@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/simone-vibes/vibez/internal/auth"
 	"github.com/simone-vibes/vibez/internal/config"
+	"github.com/simone-vibes/vibez/internal/crash"
 	"github.com/simone-vibes/vibez/internal/player/cdp"
 	"github.com/simone-vibes/vibez/internal/player/mpris"
 	"github.com/simone-vibes/vibez/internal/player/webkit"
@@ -28,11 +29,12 @@ func runPlatform(cfg *config.Config, iconPath string, opts tui.Options, onUserTo
 			initStatus: "Initializing vibez...",
 			afterReady: func(cdpPlayer *cdp.Player) {
 				if srv, mprisErr := mpris.NewServer(cdpPlayer); mprisErr == nil {
-					go func() {
-						for st := range cdpPlayer.Subscribe() {
-							srv.Update(st)
-						}
-					}()
+				go func() {
+					defer crash.Recover("cdp-mpris")
+					for st := range cdpPlayer.Subscribe() {
+						srv.Update(st)
+					}
+				}()
 				}
 			},
 			helperPaths: func() []string {
@@ -76,6 +78,7 @@ func runWebKitFlow(cfg *config.Config, iconPath string, opts tui.Options, onUser
 	tuiErr := make(chan error, 1)
 
 	go func() {
+		defer crash.Recover("webkit-tui")
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
@@ -88,6 +91,7 @@ func runWebKitFlow(cfg *config.Config, iconPath string, opts tui.Options, onUser
 		if srv, mprisErr := mpris.NewServer(wkPlayer); mprisErr == nil {
 			defer func() { _ = srv.Close() }()
 			go func() {
+				defer crash.Recover("webkit-mpris")
 				for st := range wkPlayer.Subscribe() {
 					srv.Update(st)
 				}
@@ -107,5 +111,9 @@ func runWebKitFlow(cfg *config.Config, iconPath string, opts tui.Options, onUser
 	}()
 
 	wkPlayer.Run()
-	return <-tuiErr
+	err = <-tuiErr
+	if err != nil {
+		crash.ReportError("tui", err)
+	}
+	return err
 }
